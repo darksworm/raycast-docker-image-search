@@ -1,15 +1,27 @@
-// Define the structure for Docker tag information
+// Update the DockerTag interface to include the publish date
 export interface DockerTag {
   name: string;
   architectures: string[];
+  date: string; // ISO 8601 formatted date
 }
 
-/**
- * Fetch all tags for a given Docker image (repository) from Docker Hub.
- * @param repository The image repository name (e.g. "ubuntu").
- * @param namespace  The Docker Hub namespace (defaults to "library" for official images).
- * @returns List of DockerTag objects containing tag names and supported architectures.
- */
+function formatRelativeTime(date: Date): string {
+  const diff = Date.now() - date.getTime();
+  if (diff < 1000 * 60) {
+    const seconds = Math.floor(diff / 1000);
+    return `${seconds} seconds ago`;
+  } else if (diff < 1000 * 60 * 60) {
+    const minutes = Math.floor(diff / (1000 * 60));
+    return `${minutes} minutes ago`;
+  } else if (diff < 1000 * 60 * 60 * 24) {
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    return `${hours} hours ago`;
+  } else {
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    return `${days} days ago`;
+  }
+}
+
 export async function fetchTags(repository: string, namespace: string = "library"): Promise<DockerTag[]> {
   const baseUrl = `https://hub.docker.com/v2/repositories/${namespace}/${repository}/tags`;
   const pageSize = 100;
@@ -17,17 +29,27 @@ export async function fetchTags(repository: string, namespace: string = "library
   const tags: DockerTag[] = [];
 
   try {
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       const url = `${baseUrl}?page=${page}&page_size=${pageSize}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch tags (status ${response.status})`);
       }
-      const data = await response.json() as { next?: string; results: { name: string; images?: { architecture: string; variant?: string }[] }[] };
+      const data = await response.json() as { next?: string; results: { name: string; images?: { architecture: string; variant?: string, last_pushed?: string  }[] }[] };
       // Process the results on this page
       for (const result of data.results) {
         const tagName: string = result.name;
+
+        const timestamps = result?.images
+            ?.map((img: { architecture: string; variant?: string, last_pushed?: string }) => img.last_pushed)
+            .filter((dateStr): dateStr is string => Boolean(dateStr))
+            .map(dateStr => new Date(dateStr))
+            .filter(date => !isNaN(date.getTime()));
+
+        const lastUpdated = timestamps?.length
+            ? formatRelativeTime(new Date(Math.max(...timestamps.map(d => d.getTime()))))
+            : "Unknown";
+
         // Each result has an "images" array with objects containing architecture and variant
         const archList: string[] =
           result.images?.map((img: { architecture: string; variant?: string }) => {
@@ -41,7 +63,7 @@ export async function fetchTags(repository: string, namespace: string = "library
         // Remove duplicates and sort architectures for consistency
         const uniqueArchs = Array.from(new Set(archList));
         uniqueArchs.sort();
-        tags.push({ name: tagName, architectures: uniqueArchs });
+        tags.push({date: lastUpdated, name: tagName, architectures: uniqueArchs });
       }
       // Check if there are more pages
       if (data.next) {
@@ -51,7 +73,6 @@ export async function fetchTags(repository: string, namespace: string = "library
       }
     }
 
-    // Sort tags alphabetically (numeric parts in order) for easier browsing
     tags.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     return tags;
   } catch (error: unknown) {

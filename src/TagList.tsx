@@ -33,7 +33,7 @@ export default function TagList({ imageName }: { imageName: string }) {
             <List.Item
                 key={tag.name}
                 title={tag.name}
-                subtitle={tag.architectures.join(", ")}
+                subtitle={tag.architectures.join(", ") + (tag.date && ", updated " + tag.date)}
                 keywords={tag.architectures}
                 actions={
                   <ActionPanel>
