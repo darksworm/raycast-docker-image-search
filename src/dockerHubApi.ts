@@ -23,7 +23,10 @@ function formatRelativeTime(date: Date): string {
   }
 }
 
-export async function* fetchTagsIncrementally(repository: string, namespace: string = "library"): AsyncGenerator<DockerTag[]> {
+export async function* fetchTagsIncrementally(
+  repository: string,
+  namespace: string = "library"
+): AsyncGenerator<DockerTag[]> {
   const baseUrl = `https://hub.docker.com/v2/repositories/${namespace}/${repository}/tags`;
   const pageSize = 100;
   let page = 1;
@@ -35,7 +38,14 @@ export async function* fetchTagsIncrementally(repository: string, namespace: str
       if (!response.ok) {
         throw new Error(`Failed to fetch tags (status ${response.status})`);
       }
-      const data = await response.json() as { next?: string; results: { name: string; id:number; images?: { architecture: string; variant?: string, last_pushed?: string }[] }[] };
+      const data = (await response.json()) as {
+        next?: string;
+        results: {
+          name: string;
+          id: number;
+          images?: { architecture: string; variant?: string; last_pushed?: string }[];
+        }[];
+      };
       const tags: DockerTag[] = [];
 
       for (const result of data.results) {
@@ -44,24 +54,26 @@ export async function* fetchTagsIncrementally(repository: string, namespace: str
         const timestamps = result?.images
           ?.map((img) => img.last_pushed)
           .filter((dateStr): dateStr is string => Boolean(dateStr))
-          .map(dateStr => new Date(dateStr))
-          .filter(date => !isNaN(date.getTime()));
+          .map((dateStr) => new Date(dateStr))
+          .filter((date) => !isNaN(date.getTime()));
 
         const lastUpdated = timestamps?.length
-          ? formatRelativeTime(new Date(Math.max(...timestamps.map(d => d.getTime()))))
+          ? formatRelativeTime(new Date(Math.max(...timestamps.map((d) => d.getTime()))))
           : "an unknown time ago";
 
         const archList: string[] =
-          result.images?.map((img) => {
-            let arch = img.architecture;
-            if (img.variant) {
-              arch += `/${img.variant}`;
-            }
-            if (arch === "unknown") {
-              return null;
-            }
-            return arch;
-          }).filter((x): x is string => x !== null) || [];
+          result.images
+            ?.map((img) => {
+              let arch = img.architecture;
+              if (img.variant) {
+                arch += `/${img.variant}`;
+              }
+              if (arch === "unknown") {
+                return null;
+              }
+              return arch;
+            })
+            .filter((x): x is string => x !== null) || [];
 
         const uniqueArchs = Array.from(new Set(archList));
         uniqueArchs.sort();
@@ -82,4 +94,3 @@ export async function* fetchTagsIncrementally(repository: string, namespace: str
     throw new Error("Failed to fetch tags from Docker Hub");
   }
 }
-

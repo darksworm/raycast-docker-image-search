@@ -33,6 +33,7 @@
     "dev": "ray develop",
     "build": "ray build",
     "lint": "ray lint",
-    "fix-lint": "ray lint --fix"
+    "fix-lint": "ray lint --fix",
+    "publish": "ray publish"
   }
 }

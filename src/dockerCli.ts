@@ -9,16 +9,19 @@ export interface DockerImage {
 
 const execFileAsync = promisify(execFile);
 
-/** Fallback search using Docker Hub HTTP API (official images only). */
+/** Fallback search using DockerHub HTTP API (official images only). */
 async function apiSearch(query: string): Promise<DockerImage[]> {
   if (!query) return [];
   const url = `https://hub.docker.com/v2/search/repositories/?is_official=true&page_size=25&query=${encodeURIComponent(
-      query
+    query
   )}`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Hub search failed (${res.status})`);
-  const data = (await res.json()) as { results: any[] };
+  const data = (await res.json()) as {
+    results: { repo_name: string; short_description?: string; star_count?: number }[];
+  };
+
   return data.results.map((r) => ({
     name: r.repo_name.replace("library/", ""),
     description: r.short_description ?? "",
@@ -27,10 +30,7 @@ async function apiSearch(query: string): Promise<DockerImage[]> {
 }
 
 /** Preferred search via local `docker search`; falls back to HTTP API on ENOENT. */
-export async function searchImages(
-    query: string,
-    officialOnly: boolean = true
-): Promise<DockerImage[]> {
+export async function searchImages(query: string, officialOnly: boolean = true): Promise<DockerImage[]> {
   if (!query) return [];
 
   const args = ["search"];
@@ -40,16 +40,16 @@ export async function searchImages(
   try {
     const { stdout } = await execFileAsync("docker", args);
     return stdout
-        .trim()
-        .split("\n")
-        .filter(Boolean)
-        .map((line) => {
-          const [name, stars, desc] = line.split(":::");
-          return { name, description: desc?.trim() ?? "", stars: parseInt(stars, 10) || 0 };
-        });
-  } catch (err: any) {
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        const [name, stars, desc] = line.split(":::");
+        return { name, description: desc?.trim() ?? "", stars: parseInt(stars, 10) || 0 };
+      });
+  } catch (err: unknown) {
     /* Missing docker binary or other exec error ⇒ use HTTP fallback */
-    if (err.code === "ENOENT") {
+    if ((err as { code?: string }).code === "ENOENT") {
       return apiSearch(query);
     }
     throw err; // real CLI error (network, login rate‑limit, etc.)
