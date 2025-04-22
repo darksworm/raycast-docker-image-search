@@ -2,6 +2,7 @@ import { Action, ActionPanel, Icon, List } from "@raycast/api";
 import React, { useEffect, useMemo, useState } from "react";
 import { DockerTag, fetchTagsIncrementally } from "./dockerHubApi";
 import { fuzzyFilter } from "./fuzzyFilter";
+import {getCachedTags, setCachedTags} from "./cacheManager";
 
 export default function TagList({ imageName }: { imageName: string }) {
   const [tags, setTags] = useState<DockerTag[]>([]);
@@ -10,6 +11,7 @@ export default function TagList({ imageName }: { imageName: string }) {
   const [error, setError] = useState<Error>();
   const [query, setQuery] = useState("");
 
+  // In TagList.tsx, update the useEffect
   useEffect(() => {
     if (loadingTags) {
       return;
@@ -17,18 +19,29 @@ export default function TagList({ imageName }: { imageName: string }) {
 
     setLoading(true);
     setLoadingTags(true);
-    setTags([]); // Reset tags when a new image is loaded
 
     const fetchTags = async () => {
       try {
+        // Check cache first
+        const cached = getCachedTags(imageName);
+        if (cached) {
+          setTags(cached);
+          setLoading(false);
+          setLoadingTags(false);
+          return;
+        }
+
+        const allTags: DockerTag[] = [];
         for await (const newTags of fetchTagsIncrementally(imageName)) {
+          allTags.push(...newTags);
           setTags((prevTags) => {
             const seenTags = new Set<number>(prevTags.map((t) => t.id));
             const uniqueNewTags = newTags.filter((t) => !seenTags.has(t.id));
-
             return [...prevTags, ...uniqueNewTags];
           });
         }
+        // Cache the complete set of tags
+        setCachedTags(imageName, allTags);
       } catch (err) {
         setError(err instanceof Error ? err : new Error("Unknown error"));
       } finally {

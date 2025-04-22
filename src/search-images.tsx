@@ -3,6 +3,7 @@ import { List, ActionPanel, Action, Icon } from "@raycast/api";
 import { useState, useEffect } from "react";
 import { searchImages, DockerImage } from "./dockerCli";
 import TagList from "./TagList";
+import {getCachedImages, setCachedImages} from "./cacheManager";
 
 export default function SearchDockerImagesCommand() {
   const [searchText, setSearchText] = useState("");
@@ -11,9 +12,7 @@ export default function SearchDockerImagesCommand() {
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const pageSize = 25; // Maximum results per page
 
-  // Perform the Docker image search whenever the search text changes (with debounce)
   useEffect(() => {
-    // If search text is empty, reset results and do nothing
     if (searchText.length === 0) {
       setResults([]);
       setIsLoading(false);
@@ -23,14 +22,22 @@ export default function SearchDockerImagesCommand() {
     setIsLoading(true);
     setErrorMessage(undefined);
 
-    // Small debounce: wait 300ms after typing stops
     const debounceTimer = setTimeout(async () => {
       try {
         const query = searchText;
-        const images = await searchImages(query, 25); // only official images
-        // Only update state if the search text hasn't changed since we started
+
+        const cached = getCachedImages(query);
+        if (cached) {
+          setResults(cached);
+          setIsLoading(false);
+          return;
+        }
+
+        const images = await searchImages(query, 25);
         if (query === searchText) {
           setResults(images);
+          // Cache the results
+          setCachedImages(query, images);
           setIsLoading(false);
         }
       } catch (err: unknown) {
