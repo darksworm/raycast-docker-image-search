@@ -1,5 +1,6 @@
 // Update the DockerTag interface to include the publish date
 export interface DockerTag {
+  id: number;
   name: string;
   architectures: string[];
   date: string; // ISO 8601 formatted date
@@ -22,11 +23,10 @@ function formatRelativeTime(date: Date): string {
   }
 }
 
-export async function fetchTags(repository: string, namespace: string = "library"): Promise<DockerTag[]> {
+export async function* fetchTagsIncrementally(repository: string, namespace: string = "library"): AsyncGenerator<DockerTag[]> {
   const baseUrl = `https://hub.docker.com/v2/repositories/${namespace}/${repository}/tags`;
   const pageSize = 100;
   let page = 1;
-  const tags: DockerTag[] = [];
 
   try {
     while (true) {
@@ -35,46 +35,46 @@ export async function fetchTags(repository: string, namespace: string = "library
       if (!response.ok) {
         throw new Error(`Failed to fetch tags (status ${response.status})`);
       }
-      const data = await response.json() as { next?: string; results: { name: string; images?: { architecture: string; variant?: string, last_pushed?: string  }[] }[] };
-      // Process the results on this page
+      const data = await response.json() as { next?: string; results: { name: string; id:number; images?: { architecture: string; variant?: string, last_pushed?: string }[] }[] };
+      const tags: DockerTag[] = [];
+
       for (const result of data.results) {
         const tagName: string = result.name;
 
         const timestamps = result?.images
-            ?.map((img: { architecture: string; variant?: string, last_pushed?: string }) => img.last_pushed)
-            .filter((dateStr): dateStr is string => Boolean(dateStr))
-            .map(dateStr => new Date(dateStr))
-            .filter(date => !isNaN(date.getTime()));
+          ?.map((img) => img.last_pushed)
+          .filter((dateStr): dateStr is string => Boolean(dateStr))
+          .map(dateStr => new Date(dateStr))
+          .filter(date => !isNaN(date.getTime()));
 
         const lastUpdated = timestamps?.length
-            ? formatRelativeTime(new Date(Math.max(...timestamps.map(d => d.getTime()))))
-            : "Unknown";
+          ? formatRelativeTime(new Date(Math.max(...timestamps.map(d => d.getTime()))))
+          : "an unknown time ago";
 
-        // Each result has an "images" array with objects containing architecture and variant
         const archList: string[] =
-          result.images?.map((img: { architecture: string; variant?: string }) => {
+          result.images?.map((img) => {
             let arch = img.architecture;
-            // Include variant for ARM architectures if present (e.g., arm with v7)
             if (img.variant) {
               arch += `/${img.variant}`;
             }
+            if (arch === "unknown") {
+              return null;
+            }
             return arch;
-          }) || [];
-        // Remove duplicates and sort architectures for consistency
+          }).filter((x): x is string => x !== null) || [];
+
         const uniqueArchs = Array.from(new Set(archList));
         uniqueArchs.sort();
-        tags.push({date: lastUpdated, name: tagName, architectures: uniqueArchs });
+        tags.push({ date: lastUpdated, name: tagName, architectures: uniqueArchs, id: result.id });
       }
-      // Check if there are more pages
-      if (data.next) {
-        page += 1;
-      } else {
+
+      yield tags; // Emit the tags for this page
+
+      if (!data.next) {
         break;
       }
+      page += 1;
     }
-
-    tags.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-    return tags;
   } catch (error: unknown) {
     if (error instanceof Error) {
       throw new Error(error.message || "Failed to fetch tags from Docker Hub");
@@ -82,3 +82,4 @@ export async function fetchTags(repository: string, namespace: string = "library
     throw new Error("Failed to fetch tags from Docker Hub");
   }
 }
+
