@@ -26,7 +26,7 @@ export default function SearchDockerImagesCommand() {
     const debounceTimer = setTimeout(async () => {
       try {
         const query = searchText;
-        const images = await searchImages(query, true); // only official images
+        const images = await searchImages(query); // only official images
         // Only update state if the search text hasn't changed since we started
         if (query === searchText) {
           setResults(images);
