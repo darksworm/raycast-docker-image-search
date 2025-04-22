@@ -61,7 +61,10 @@ export default function SearchDockerImagesCommand() {
           key={image.name}
           title={image.name}
           subtitle={image.description.length > 80 ? image.description.slice(0, 77) + "..." : image.description}
-          accessories={[{ text: String(image.stars), icon: Icon.Star }]}
+          accessories={[
+              image.isOfficial ? { tooltip: "This is an official image", icon: Icon.CheckCircle } : {},
+              { text: String(image.stars), icon: Icon.Star }
+          ]}
           actions={
             <ActionPanel>
               {/* Push a new TagList view when an image is selected */}
