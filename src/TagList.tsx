@@ -45,6 +45,10 @@ export default function TagList({ imageName }: { imageName: string }) {
     [query, tags]
   );
 
+  const [namespace, repository] = imageName.includes("/")
+      ? imageName.split("/", 2)
+      : ["library", imageName];
+
   return (
     <List
       isLoading={loading}
@@ -62,6 +66,10 @@ export default function TagList({ imageName }: { imageName: string }) {
           actions={
             <ActionPanel>
               <Action.CopyToClipboard content={`${imageName}:${tag.name}`} title="Copy Image:tag" />
+              <Action.OpenInBrowser
+                  title="Open in Docker Hub"
+                  url={`https://hub.docker.com/layers/${namespace}/${repository}/${tag.name}/images/${tag.digest}`}
+              />
             </ActionPanel>
           }
         />

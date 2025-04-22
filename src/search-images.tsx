@@ -69,6 +69,10 @@ export default function SearchDockerImagesCommand() {
             <ActionPanel>
               {/* Push a new TagList view when an image is selected */}
               <Action.Push title="Show Tags" target={<TagList imageName={image.name} />} />
+              <Action.OpenInBrowser
+                  title="View on Docker Hub"
+                  url={`https://hub.docker.com/${image.isOfficial ? '_/' : 'r/'}${image.name}`}
+              />
             </ActionPanel>
           }
         />

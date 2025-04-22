@@ -3,7 +3,8 @@ export interface DockerTag {
   id: number;
   name: string;
   architectures: string[];
-  date: string; // ISO 8601 formatted date
+  date: string;
+  digest?: string; // SHA256 digest
 }
 
 function formatRelativeTime(date: Date): string {
@@ -43,13 +44,15 @@ export async function* fetchTagsIncrementally(
         results: {
           name: string;
           id: number;
-          images?: { architecture: string; variant?: string; last_pushed?: string }[];
+          images?: { architecture: string; variant?: string; last_pushed?: string; digest?: string }[];
         }[];
       };
       const tags: DockerTag[] = [];
 
       for (const result of data.results) {
         const tagName: string = result.name;
+        // Get the first available digest
+        const digest = result.images?.[0]?.digest;
 
         const timestamps = result?.images
           ?.map((img) => img.last_pushed)
@@ -77,7 +80,8 @@ export async function* fetchTagsIncrementally(
 
         const uniqueArchs = Array.from(new Set(archList));
         uniqueArchs.sort();
-        tags.push({ date: lastUpdated, name: tagName, architectures: uniqueArchs, id: result.id });
+        tags.push({
+          date: lastUpdated, name: tagName, architectures: uniqueArchs, id: result.id, digest });
       }
 
       yield tags; // Emit the tags for this page
