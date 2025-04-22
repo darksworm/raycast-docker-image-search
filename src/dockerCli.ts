@@ -5,9 +5,9 @@ export interface DockerImage {
   isOfficial: boolean; // New property to indicate if the image is official
 }
 
-export async function searchImages(query: string): Promise<DockerImage[]> {
+export async function searchImages(query: string, pageSize: number): Promise<DockerImage[]> {
   if (!query) return [];
-  const url = `https://hub.docker.com/v2/search/repositories/?page_size=25&query=${encodeURIComponent(query)}`;
+  const url = `https://hub.docker.com/v2/search/repositories/?page_size=${pageSize}&query=${encodeURIComponent(query)}`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Hub search failed (${res.status})`);

@@ -9,6 +9,7 @@ export default function SearchDockerImagesCommand() {
   const [results, setResults] = useState<DockerImage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const pageSize = 25; // Maximum results per page
 
   // Perform the Docker image search whenever the search text changes (with debounce)
   useEffect(() => {
@@ -26,7 +27,7 @@ export default function SearchDockerImagesCommand() {
     const debounceTimer = setTimeout(async () => {
       try {
         const query = searchText;
-        const images = await searchImages(query); // only official images
+        const images = await searchImages(query, 25); // only official images
         // Only update state if the search text hasn't changed since we started
         if (query === searchText) {
           setResults(images);
@@ -69,6 +70,16 @@ export default function SearchDockerImagesCommand() {
           }
         />
       ))}
+
+      {/* Indicate more results if the maximum page size is reached */}
+      {results.length === pageSize && (
+          <List.Item
+              key="more-results"
+              title="Refine your search query"
+              subtitle="There might be more results. Try narrowing your search."
+              icon={Icon.Info}
+          />
+      )}
 
       {/* Show a friendly message when no results or on initial state */}
       {results.length === 0 && !isLoading && searchText.length === 0 && (
